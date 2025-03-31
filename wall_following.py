@@ -20,7 +20,7 @@ class WallFollow:
         # Read the Wall-Following controller paramters form params.yaml
         lidarscan_topic =rospy.get_param('~scan_topic')
         odom_topic= rospy.get_param('~odom_topic')
-	drive_topic = rospy.get_param('~drive_topic')
+	drive_topic = rospy.get_param('~nav_drive_topic')
         self.b_l = rospy.get_param('~b_l')
         self.b_r = rospy.get_param('~b_r')
         self.a_l = rospy.get_param('~a_l')
@@ -58,10 +58,10 @@ class WallFollow:
         b_r_distance = data.ranges[b_r_index]
         a_l_distance = data.ranges[a_l_index]
         b_l_distance = data.ranges[b_l_index]
-	print("a_r_distance: ", a_r_distance, "b_r_distance: ", b_r_distance, "a_l_distance: ", a_l_distance, "b_l_distance: ", b_l_distance)
+	#print("a_r_distance: ", a_r_distance, "b_r_distance: ", b_r_distance, "a_l_distance: ", a_l_distance, "b_l_distance: ", b_l_distance)
 
       # Compute the steering angle command to maintain the vehicle in the middle of left and and right walls
-	print("Velocity is ", self.vel)
+#	print("Velocity is ", self.vel)
         theta_r_deg = self.a_r - self.b_r
 	theta_r = np.radians(theta_r_deg)
         theta_l = np.radians(self.b_l - self.a_l)
@@ -73,13 +73,15 @@ class WallFollow:
         alpha_l = -1*beta_l + 3*np.pi/2 - np.radians(self.b_l)
         dlr = d_l - d_r
         dlr_dot = -1*self.vel*np.sin(alpha_l) - self.vel*np.sin(alpha_r)
-	print("theta_r= ", theta_r, "theta_l= ", theta_l, "beta_r= ", beta_r, "beta_l= ", beta_l, "d_r= ", d_r, "d_l= ", d_l)
+#	print("theta_r= ", theta_r, "theta_l= ", theta_l, "beta_r= ", beta_r, "beta_l= ", beta_l, "d_r= ", d_r, "d_l= ", d_l)
 	if self.vel == 0: #need this to avoid division by 0 in the next line, but not sure about it
 		delta = 0
 		steering_angle = 0
-		print("Velocity is 0, setting steering to 0.")
+#		print("Velocity is 0, setting steering to 0.")
 	else:
-        	delta = np.arctan2((-self.l*(-self.k_p*dlr - self.k_d*dlr_dot )), ((self.vel**2)*(np.cos(alpha_r) + np.cos(alpha_l))))
+        	#delta = np.arctan2((-self.l*(-self.k_p*dlr - self.k_d*dlr_dot )), ((self.vel**2)*(np.cos(alpha_r) + np.cos(alpha_l))))
+		delta = np.arctan((-1*self.l*(-self.k_p*dlr - self.k_d*dlr_dot))/((self.vel**2)*(np.cos(alpha_r) + np.cos(alpha_l))))
+		print("self.l= ", self.l, "self.k_p= ", self.k_p, "dlr= ", dlr, "seld.k_d= ", self.k_d, "dlr_dot= ", dlr_dot, "self.vel= ", self.vel, "alpha_r= ", alpha_r, "alpha_l= ", alpha_l)
         	if delta > self.delta_max:
             		steering_angle = self.delta_max
         	elif -self.delta_max <= delta and delta <= self.delta_max:
@@ -88,7 +90,7 @@ class WallFollow:
             		steering_angle = -self.delta_max
         	else:
             		print("Error: something wrong with steering angle")
-	print("Delta is ", delta, "so steering_angle is ", steering_angle)
+#	print("Delta is ", delta, "so steering_angle is ", steering_angle)
 
         
       # Find the closest obstacle point within a narrow viewing angle in front of the vehicle and compute the vehicle velocity command accordingly
@@ -111,6 +113,7 @@ class WallFollow:
     def odom_callback(self, odom_msg):
         # update current speed
         self.vel = odom_msg.twist.twist.linear.x
+#	self.vel = 1
 
 
 def main(args):
