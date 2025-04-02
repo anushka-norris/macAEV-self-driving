@@ -86,6 +86,7 @@ class WallFollow:
         	elif delta < -self.delta_max:
             		steering_angle = -self.delta_max
         	else:
+			steering_angle = 0
             		print("Error: something wrong with steering angle")
 
         
@@ -94,7 +95,7 @@ class WallFollow:
         ending_index = int(starting_index + 2*self.delta_theta)
         pizza_slice = data.ranges[starting_index:ending_index:1]
         d_ob = np.min(pizza_slice)
-        speed = self.vs_d*(1 - np.exp(-np.max(d_ob - self.d_stop, 0)/self.d_tau))
+        speed = 0.6*self.vs_d*(1 - np.exp(-np.max(d_ob - self.d_stop, 0)/self.d_tau)) #added a const here for ease of adjusting speed while testing
 
       # Publish steering angle and velocity commnads to the Drive topic
         self.drive_topic = AckermannDriveStamped()
