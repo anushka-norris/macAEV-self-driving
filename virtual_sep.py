@@ -126,9 +126,36 @@ class GapBarrier:
 
 
     # Set up the QP for finding the two parallel barrier lines
-    # ...
+    #want to look for obstacles from b_r to a_r
+    n_r = 2*self.a_r - 2*self.b_r
+    n_l = 2*self.b_l - 2*self.a_l
+    for ray in range(n_r):
+        right_obstacle_angle = np.radians(self.b_r + (ray/2))
+        right_obstacle_dist[ray] = data.ranges[2*self.b_r + ray]
+        p_x_r[ray] = right_obstacle_dist[ray]*np.cos(right_obstacle_angle)
+        p_y_r[ray] = right_obstacle_angle[ray]*np.sin(right_obstacle_angle)
+    for ray in range(n_l):
+        left_obstacle_angle = np.radians(self.a_l + ray/2))
+        left_obstacle_dist[ray] = data.ranges[2*self.a_l + ray]
+        p_x_l[ray] = left_obstacle_dist[ray]*np.cos(left_obstacle_angle)
+        p_y_l[ray] = left_obstacle_dist[ray]*np.sin(left_obstacle_angle)
 
-    # Solve the QP problem to find the barrier lines parameters w,b
+        #creating the C array:
+        bottom_ones = np.ones_like(p_y_r)
+        bottom_neg_ones = -1*np.ones_like(p_y_l)
+        left_part = np.vstack(p_x_r, p_y_r, bottom_ones)
+        middle_part = np.vstack(-1*p_x_l, -1*p_y_l, bottom_neg_ones)
+        right_part = np.array([0, 0], [0, 0], [1, -1])
+        C = np.hstack(left_part, middle_part, right_part)
+        #The other arrays are given
+        G = np.array([1, 0, 0],[0, 1, 0], [0, 0, 0.0001])
+        a = np.array([0], [0], [0])
+        b = np.ones((n_r _ n_l + 2, 1))
+        b[-1] = -0.99
+        b[-2] = -0.99
+
+        # Solve the QP problem to find the barrier lines parameters w,b
+        x = solve_qp(G, a, C, b, meq)[0]        
 
     # Compute the values of the variables needed for the implementation of feedback linearizing+PD controller
     # ...
