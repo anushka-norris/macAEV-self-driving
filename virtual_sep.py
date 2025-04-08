@@ -140,33 +140,69 @@ class GapBarrier:
         p_x_l[ray] = left_obstacle_dist[ray]*np.cos(left_obstacle_angle)
         p_y_l[ray] = left_obstacle_dist[ray]*np.sin(left_obstacle_angle)
 
-        #creating the C array:
-        bottom_ones = np.ones_like(p_y_r)
-        bottom_neg_ones = -1*np.ones_like(p_y_l)
-        left_part = np.vstack(p_x_r, p_y_r, bottom_ones)
-        middle_part = np.vstack(-1*p_x_l, -1*p_y_l, bottom_neg_ones)
-        right_part = np.array([0, 0], [0, 0], [1, -1])
-        C = np.hstack(left_part, middle_part, right_part)
-        #The other arrays are given
-        G = np.array([1, 0, 0],[0, 1, 0], [0, 0, 0.0001])
-        a = np.array([0], [0], [0])
-        b = np.ones((n_r _ n_l + 2, 1))
-        b[-1] = -0.99
-        b[-2] = -0.99
+    #creating the C array:
+    bottom_ones = np.ones_like(p_y_r)
+    bottom_neg_ones = -1*np.ones_like(p_y_l)
+    left_part = np.vstack(p_x_r, p_y_r, bottom_ones)
+    middle_part = np.vstack(-1*p_x_l, -1*p_y_l, bottom_neg_ones)
+    right_part = np.array([0, 0], [0, 0], [1, -1])
+    C = np.hstack(left_part, middle_part, right_part)
+    #The other arrays are given
+    G = np.array([1, 0, 0],[0, 1, 0], [0, 0, 0.0001])
+    a = np.array([0], [0], [0])
+    b = np.ones((n_r _ n_l + 2, 1))
+    b[-1] = -0.99
+    b[-2] = -0.99
 
-        # Solve the QP problem to find the barrier lines parameters w,b
-        x = solve_qp(G, a, C, b, meq)[0]        
+    # Solve the QP problem to find the barrier lines parameters w,b
+    minimized = solve_qp(G, a, C, b, meq)[0]        
 
     # Compute the values of the variables needed for the implementation of feedback linearizing+PD controller
-    # ...
+    w = minimized[0:2]
+    b = minimized[2]
+    w_r = w/(b - 1) #should work if w is a numpy array rather than a list, but not sure if it is
+    w_l = w/(b + 1)
+    d_l = 1/np.sqrt(np.transpose(w_l)*w_l)
+    d_r = 1/np.sqrt(np.transpose(w_r)*w_r)
+    w_l_hat = d_l*w_l
+    w_r_hat = d_r*w_r
+    d_l_dot = np.array([self.vel, 0])*w_l_hat
+    d_r_dot = np.array([self.vel, 0])*w_r_hat
+    cos_al = np.array([0, -1])*w_l_hat
+    cos_ar = np.array([0, 1])*w_r_hat
+    dlr = d_l - d_r
+    dlr_dot = d_l_dot - d_r_dot
+
     
-    # Compute the steering angle command
+        # Compute the steering angle command
+    if self.vel == 0: #need this to avoid division by 0 in the next line, but not sure about it
+		delta = 0
+		steering_angle = 0
+	else:
+		delta = np.arctan((-1*self.l*(-self.k_p*dlr - self.k_d*dlr_dot))/((self.vel**2)*(np.cos(alpha_r) + np.cos(alpha_l))))
+        	if delta > self.delta_max:
+            		steering_angle = self.delta_max
+        	elif -self.delta_max <= delta and delta <= self.delta_max:
+            		steering_angle = delta
+        	elif delta < -self.delta_max:
+            		steering_angle = -self.delta_max
+        	else:
+			steering_angle = 0
+            		print("Error: something wrong with steering angle")
         
     # Find the closest obstacle point in a narrow field of view in fronnt of the vehicle and compute the velocity command accordingly    
-    # ...
+    starting_index = int(2*(180 - self.delta_theta/2))
+    ending_index = int(starting_index + 2*self.delta_theta)
+    pizza_slice_2 = data.ranges[starting_index:ending_index:1]
+    d_ob = np.min(pizza_slice_2)
+    speed = self.vs_d*(1 - np.exp(-np.max(d_ob - self.d_stop, 0)/self.d_tau))
         
     # Publish the steering and speed commands to the drive topic
-    # ...
+    self.drive_topic = AckermannDriveStamped()
+    self.drive_topic.drive.steering_angle = steering_angle
+    self.drive_topic.drive.speed = speed
+    self.drive_topic.header.stamp = rospy.Time.now()
+    self.drive_pub.publish(self.drive_topic)
 
 
     # Odometry callback 
